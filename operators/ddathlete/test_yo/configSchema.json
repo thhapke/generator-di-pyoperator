@@ -1,0 +1,23 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$id": "http://sap.com/vflow/ddathlete.test_yo.configSchema.json",
+    "type": "object",
+    "properties": {
+        "codelanguage": {
+            "type": "string"
+        },
+        "script": {
+            "type": "string"
+        },
+        "pstring": {
+            "title": "pstring",
+            "description": "p String",
+            "type": "string"
+        },
+        "pnumber": {
+            "title": "p number",
+            "description": "p Number",
+            "type": "number"
+        }
+    }
+}
