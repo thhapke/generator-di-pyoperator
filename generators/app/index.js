@@ -230,8 +230,16 @@ module.exports = class extends Generator {
       };
     };
 
+    // storing the operator data
     for (const [filename, content] of Object.entries(this.files_content)) {
       this.fs.write(path.join(this.destinationRoot(),'operators',this.operator_dir,filename), content);
     };
+    // copying the mock_di_api to utils
+    this.fs.copy(this.templatePath('mock_di_api.py'),this.destinationPath('utils/mock_di_api.py'));
+    
+    // make testdata directory
+    mkdirp.sync(path.join(this.destinationRoot(),'testdata'));
+
+
   };
 };
