@@ -1,0 +1,28 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$id": "http://sap.com/vflow/ddathlete.PowerZones.configSchema.json",
+    "type": "object",
+    "properties": {
+        "codelanguage": {
+            "type": "string"
+        },
+        "script": {
+            "type": "string"
+        },
+        "w_powerzone": {
+            "title": "Width Powerzone",
+            "description": "Width Powerzone",
+            "type": "number"
+        },
+        "w_speed_running": {
+            "title": "Width Speed of Running",
+            "description": "Width Speed of Running",
+            "type": "number"
+        },
+        "w_speed_swimming": {
+            "title": "Width Speed of Swimming",
+            "description": "Width Speed of Swimming",
+            "type": "number"
+        }
+    }
+}

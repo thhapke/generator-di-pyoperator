@@ -1,0 +1,29 @@
+{
+    "description": "Power Zones",
+    "component": "com.sap.system.python3Operator",
+    "versionStatus": "active",
+    "inports": [
+        {
+            "name": "input",
+            "type": "message.table"
+        }
+    ],
+    "outports": [
+        {
+            "name": "output",
+            "type": "message.table"
+        },
+        {
+            "name": "log",
+            "type": "string"
+        }
+    ],
+    "icon": "bar-chart",
+    "config": {
+        "$type": "http://sap.com/vflow/ddathlete.PowerZones.configSchema.json",
+        "script": "file://powerzones.py",
+        "w_powerzone": 5,
+        "w_speed_running": 0.1,
+        "w_speed_swimming": 0.1
+    }
+}
