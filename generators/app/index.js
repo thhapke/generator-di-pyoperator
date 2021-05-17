@@ -152,7 +152,10 @@ module.exports = class extends Generator {
       let call_func = ''
       if (('inports' in op_att) ==false || op_att['inports'].length == 0) {
         call_func = 'gen()';
-        script_content += 'def '+call_func+' :\n\tpass\n\napi.add_generator(gen)';
+        script_content += 'def '+call_func+' :\n\tpass\n\n';
+        script_content += '# Function called within Data Intelligence pipeline\n';
+        script_content += '# Commented out for standalone-development and testing\n';
+        script_content += '#api.add_generator(gen)';
       } else {
         for (let ip = 0; ip < op_att['inports'].length; ip++) {
           //this.log('Inport: ' + op_att['inports'][ip]['name']);
@@ -163,16 +166,19 @@ module.exports = class extends Generator {
             script_content += '\tout_msg = None\n';
             script_content += '\tapi.send(\''+op_att['outports'][op]['name']+'\',out_msg)\n\n';
           }
-          script_content += 'api.set_port_callback(\''+op_att['inports'][ip]['name']+'\',on_'+op_att['inports'][ip]['name']+')\n\n';
+          script_content += '# Function called within Data Intelligence pipeline\n';
+          script_content += '# Commented out for standalone-development and testing\n';
+          script_content += '#api.set_port_callback(\''+op_att['inports'][ip]['name']+'\',on_'+op_att['inports'][ip]['name']+')\n\n';
         }
         //this.log('Main');
+        script_content += '# Main function used for standalone testing only\n'
         script_content += "if __name__ == \'__main__\':\n";
         // config values
         script_content += '\n\t# config parameter \n' ;
         for (let [key, value] of Object.entries(config_att['properties'])) {
           if (key !== 'codelanguage' && key !== 'script' ) {
               //this.log('Config param -  key: ' + key);
-              let param_type = '   # datatype : ' + key['type'] + '\n';
+              let param_type = '   # datatype : ' + config_att['properties'][key]['type'] + '\n';
               if (key in op_att['config']) {
                 value = op_att['config'][key];
                 if (value == null) {value = 'None'};
