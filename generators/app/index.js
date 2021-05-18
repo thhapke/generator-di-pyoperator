@@ -71,17 +71,10 @@ module.exports = class extends Generator {
   async prompting() {
     this.answers = await this.prompt([
       {
-        type: 'checkbox',
+        type: 'input',
         name: 'direction',
-        message: 'Download or upload operator',
-        choices: [
-          {
-            name: 'Download',
-            value: 'download',
-          }, {
-            name: 'Upload',
-            value: 'upload'
-          }]
+        message: '(D)ownload or (U)pload operator',
+        default: 'D'
       },
       {
         type: "input",
@@ -116,20 +109,25 @@ module.exports = class extends Generator {
       }
     ]);
 
+    this.answers.direction = this.answers.direction.toUpperCase();
+
     this.operator_dir = this.answers.operator.replace('.','/');
 
     //login
+    this.log('Login into SAP Data Intelligence')
     _vctl_login(this,this.answers.di_url,this.answers.tenant,this.answers.user,this.answers.pwd);
 
-    if (this.answers.direction =='download') {
+    if (this.answers.direction =='D') {
       this.log('***** Download *****');
       // List all files in operator folder
       let files = _vctl_ls(this,this.answers.operator);
+      //this.log('All files in \''+this.answers.operator+'\'-directory: ' + files)
 
       // copy files 
       for (let f = 0; f < files.length; f++ ) {
         // Download file and add to files_content dict
         let operator_path = path.join(operators_path,this.operator_dir,files[f]);
+        this.log('Copy file: ' + files[f] )
         this.files_content[files[f]] = _vctl_read(this,operator_path);
       };
     };
@@ -138,19 +136,19 @@ module.exports = class extends Generator {
   
   writing() {
 
-    if (this.answers.direction == 'download') {
+    if (this.answers.direction == 'D') {
 
       let config_att = JSON.parse(this.files_content['configSchema.json']);
       let op_att = JSON.parse(this.files_content['operator.json']);
       let script_file = op_att['config']['script'].slice(7);
 
       //this.log('Root: ' + this.destinationRoot())
-      this.log('Destination: ' + this.destinationPath());
-      let dest_path = path.join(this.destinationRoot(),'operators',this.operator_dir)
+      let dest_path = path.join(this.destinationRoot(),'operators',this.operator_dir);
+      this.log('Target directory: ' + dest_path);
       mkdirp(dest_path);
 
       // Test empty script -> no script
-      if (this.files_content[script_file].length < 20) {
+      if ((script_file in this.files_content) == true && this.files_content[script_file].length < 20) {
         this.log('Script exist but has not content. Will be overwritten!')
         delete this.files_content[script_file]
       }
@@ -210,7 +208,7 @@ module.exports = class extends Generator {
 
       // Adjust python script
       }
-      else  {
+      else if (this.answers.direction == 'U')  {
         this.log('Script file adjusted: '+ script_file);
         //  MOCK_DI_API
         let import_pattern = /#*\s*from utils.mock_di_api import api/
@@ -255,8 +253,11 @@ module.exports = class extends Generator {
           };
           this.files_content[script_file] += main_str;
         };
-      };
+      }; 
 
+      // make testdata directory
+      mkdirp.sync(path.join(this.destinationRoot(),'operators'));
+      mkdirp.sync(path.join(this.destinationRoot(),'operators',this.operator_dir));
       // storing the operator data
       for (const [filename, content] of Object.entries(this.files_content)) {
         this.fs.write(path.join(this.destinationRoot(),'operators',this.operator_dir,filename), content);
@@ -277,7 +278,7 @@ module.exports = class extends Generator {
       this.log(this.config.getAll())
       */
 
-    } else {
+    } else if (this.answers.direction == 'U') {
       this.log('***** Upload *****');
       let source_path = path.join(this.destinationRoot(),'operators',this.operator_dir);
       let target_path = path.join(operators_path,this.operator_dir);
@@ -312,7 +313,8 @@ module.exports = class extends Generator {
 
       fs.writeFileSync(script_file_path, script_content);
 
-
+    } else {
+      this.log('Unknown direction: (D)ownload or (U)pload. ' + this.answers.direction)
     }
   };
 };

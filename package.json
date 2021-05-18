@@ -1,7 +1,7 @@
 {
   "name": "generator-di-pyoperator",
-  "version": "1.0.1",
-  "description": "Creates SAP Data Intelligence Python custom operator for standalone testin",
+  "version": "1.0.3",
+  "description": "Creates SAP Data Intelligence Python custom operator for standalone testing and uploading.",
   "main": "index.js",
   "scripts": {
     "test": "dipyop"

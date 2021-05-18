@@ -1,14 +1,15 @@
 # generator-di-operator
 
-Yeoman generator for downloading SAP Data Intelligence python operators for developing and testing standalone.
+Yeoman generator for downloading SAP Data Intelligence python operators for developing and testing standalone and uploading it again. 
 
 ## Prompts
 
-1. SAP Data Intelligence URL (stored)
-2. Tenant (stored, default = 'default')
-3. User (stored): Sap Data Intelligence user of Workspace
-4. Password (stored): Sap Data Intelligence user password of Workspace
-5. Operator (stored): Operator name (=folder name in vflow)
+1. Download from DI or Upload to DI
+2. SAP Data Intelligence URL (stored)
+3. Tenant (stored, default = 'default')
+4. User (stored): Sap Data Intelligence user of Workspace
+5. Password (stored): Sap Data Intelligence user password of Workspace
+6. Operator (stored): Operator name (=folder name in vflow)
 
 ## Generation 
 
@@ -36,7 +37,7 @@ Yeoman is a scaffolding tool creating the framework and templates that you need 
 2. Installing yeoman
     * ```npm install -g yo````
 3. Installing the di-pyoperator generator
-    * ```npm install -g generator-di-pyoperator
+    * ```npm install -g generator-di-pyoperator```
 
 ### Local SAP Data Intelligence Operator deployment
 
