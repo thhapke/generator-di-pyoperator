@@ -22,6 +22,31 @@ Yeoman generator for downloading SAP Data Intelligence python operators for deve
 * The 'mock_di_api.py'-file is stored to the <project>/utils folder
 * A <project>/'testdata' folder is created for storing the test data
 
+## Configuration Saving
+
+For sending back the data to the SAP Data Intelligence system the latest configuration is stored in .yo-rc.json.
+
+## Installation 
+
+### YEOMAN
+Yeoman is a scaffolding tool creating the framework and templates that you need for a quick start.
+
+1. Installing ```npm```, a JavaScript software registry and package installation tool 
+    * MacOs: ```brew install node``` 
+2. Installing yeoman
+    * ```npm install -g yo````
+3. Installing the di-pyoperator generator
+    * ```npm install -g generator-di-pyoperator
+
+### Local SAP Data Intelligence Operator deployment
+
+0. Create Git - Repository <project>
+1. Clone repository locally or make project directory <project>
+2. ```cd project````
+3. Run yo-generator for preparing local DI operator development 
+```yo di-pyoperator```
+
+
 ## Open Tasks
 
 * Generating new operator standalone without previously creating one in SAP Data Intelligence modeler

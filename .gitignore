@@ -1,3 +1,14 @@
+.idea
+.DS_Store
+config.yaml
+cred.yaml
+sql.txt
+.yo-rc.json
+
+# generator
+operators/
+
+
 # Logs
 logs
 *.log
