@@ -66,7 +66,7 @@ module.exports = class extends Generator {
     super(args,opts);
 
     //this.argument("init",{type: String,desc:'Initialize project by copying necessary files. Attention: overrides changed files!'})
-    this.option("init",{type: String,default:false,desc:'Initialize project by copying necessary files. Attention: overrides changed files!'});
+    this.option("init",{type: Boolean,default:false,desc:'Initialize project by copying necessary files. Attention: overrides changed files!'});
     this.files_content = {};
     this.operator_dir = '';
   }
@@ -74,10 +74,19 @@ module.exports = class extends Generator {
   async prompting() {
     this.answers = await this.prompt([
       {
-        type: 'input',
+        type: 'list',
         name: 'direction',
-        message: '(D)ownload or (U)pload operator',
-        default: 'D'
+        message: 'Download or Upload operator',
+        default: 'D',
+        choices: [
+          {
+            name: 'Download',
+            value: 'D',
+          }, {
+            name: 'Upload',
+            value: 'U'
+          }
+        ]
       },
       {
         type: "input",
@@ -112,7 +121,7 @@ module.exports = class extends Generator {
       }
     ]);
 
-    this.answers.direction = this.answers.direction.toUpperCase();
+    //this.answers.direction = this.answers.direction.toUpperCase();
     this.operator_dir = this.answers.operator.replace('.','/');
 
     //login
@@ -142,7 +151,7 @@ module.exports = class extends Generator {
      *  Initializes Poject option --init
     */
     if (this.options.init) {
-      this.log('Initializes project. Option init: ' + this.options.init )
+      this.log('Initializes project.')
       // make testdata directory
       mkdirp.sync(path.join(this.destinationRoot(),'operators'));
       // copying the mock_di_api and operator_test to utils

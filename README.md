@@ -22,7 +22,7 @@ The option ```--init```creates the folders needed for the project and saves the 
 
 ### Prompts
 
-1. (D)ownload from DI or (u)pload to DI (stored)  - Choices are not working right now ;/
+1. Download from DI or Upload to DI (stored)  
 2. SAP Data Intelligence URL (stored)
 3. Tenant (stored, default = 'default')
 4. User (stored): Sap Data Intelligence user of Workspace
@@ -123,7 +123,7 @@ To support these there are methods of the operator_test class that reads csv-dat
 * ```get_file(<testfile.csv>)``` -> byte-code
 * ```get_msgtable(<testfile.csv>)``` -> message with table attributes and 2-dim data array.
 
-This is only a start and can be extended. Be careful when using the cmd ```yo di-operator --init``` any changes to operator_test are overwritten. 
+This is only a start and can be extended. Be careful when using the cmd ```yo di-operator --init``` any changes to operator_test are overwritten. h
 
 
 
