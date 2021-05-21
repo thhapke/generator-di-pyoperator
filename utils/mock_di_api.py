@@ -2,7 +2,6 @@ import os
 import json
 import logging
 
-
 class mock_config:
     def __init__(self, attributes):
         for k, v in attributes.items():
@@ -22,8 +21,9 @@ class mock_logger :
 
 class mock_api:
 
-    def __init__(self):
-        with open(os.path.join(os.getcwd(),'operator.json')) as json_file:
+    def __init__(self,source_path):
+        op_dir = os.path.dirname(source_path)
+        with open(os.path.join(op_dir,'operator.json')) as json_file:
             config_data = json.load(json_file)['config']
         del config_data['$type']
         self.config = mock_config(config_data)
@@ -40,5 +40,14 @@ class mock_api:
         else :
             print('PORT {}: \nattributes: {}\nbody: {}'.format(port,str(msg.attributes),str(msg.body)))
 
+    def set_port_callback(self,*args):
+        pass
+    def add_generator(self,*args):
+        pass
+    def add_timer(self,*args):
+        pass
+    def add_shutdown_handler(self,*args):
+        pass
 
-api = mock_api()
+
+

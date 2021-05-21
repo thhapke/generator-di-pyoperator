@@ -2,9 +2,14 @@
 
 Yeoman generator for downloading SAP Data Intelligence python operators for developing and testing standalone and uploading it again. 
 
+## CLI call
+```yo di-operator [--init]````
+
+The option ```--init```creates the folders needed for the project and saves the 'mock-di-api.py' to 'utils/. You only need this option for initializing the project. Attention: If you have modified 'mock-di-api' it will be overridden.
+
 ## Prompts
 
-1. Download from DI or Upload to DI
+1. (D)ownload from DI or (u)pload to DI (stored)  - Choices are not working right now ;/
 2. SAP Data Intelligence URL (stored)
 3. Tenant (stored, default = 'default')
 4. User (stored): Sap Data Intelligence user of Workspace
@@ -23,9 +28,6 @@ Yeoman generator for downloading SAP Data Intelligence python operators for deve
 * The 'mock_di_api.py'-file is stored to the <project>/utils folder
 * A <project>/'testdata' folder is created for storing the test data
 
-## Configuration Saving
-
-For sending back the data to the SAP Data Intelligence system the latest configuration is stored in .yo-rc.json.
 
 ## Installation 
 
