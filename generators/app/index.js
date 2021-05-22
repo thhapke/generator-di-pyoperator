@@ -174,19 +174,30 @@ api = mock_api(__file__)
 
       let config_att = JSON.parse(this.files_content['configSchema.json']);
       let op_att = JSON.parse(this.files_content['operator.json']);
-      let script_file = op_att['config']['script'].slice(7);
-
+      let script_file = '';
+      if (op_att['config']['script'].match(/^file:\/\//)) {
+        script_file = op_att['config']['script'].slice(7);
+        this.log('Script file: '+script_file )
+      } else {
+        // extract inline code and change operator.json
+        script_file = 'script.py';
+        this.files_content[script_file] = op_att['config']['script'];
+        op_att['config']['script'] = 'file://script.py';
+        this.log(JSON.stringify(op_att));
+        this.files_content['operator.json'] = JSON.stringify(op_att, null, 2);
+      }
       //this.log('Root: ' + this.destinationRoot())
       let dest_path = path.join(this.destinationRoot(),'operators',this.operator_dir);
       this.log('Target directory: ' + dest_path);
       mkdirp(dest_path);
 
       // Test empty script -> no script
+      /*
       if ((script_file in this.files_content)  && this.files_content[script_file].length < 20) {
         this.log('Script exist but has not content. Will be overwritten!')
         delete this.files_content[script_file]
       }
-
+      */
       /***************** 
        * python script
       *****************/
