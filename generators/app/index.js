@@ -243,42 +243,44 @@ api = mock_api(__file__)
       **************/ 
       let script_test = script_file.slice(0,-3) + '_test.py' 
       if ((script_test in this.files_content)===false) {
-        this.log('Create new test script: ' + script_test)
-        let test_content = `import script
+        this.log('Create newer test script: ' + script_test);
+        let script_script_test_content = `import script
 from utils.mock_di_api import mock_api
 from utils.operator_test import operator_test
         
 api = mock_api(__file__)
 optest = operator_test(__file__)
-`
+`;
         // add all config parameters
-        test_content += '\n# config parameter \n' ;
+        script_test_content += '\n# config parameter \n' ;
+        this.log('1: ' + script_test_content);
         for (let [key, value] of Object.entries(op_att['config'])) {
           if (key !== '$type' && key !== 'script' ) {
             let param_type = '   # datatype : ' + config_att['properties'][key]['type'] + '\n';
             if (value === null) {value = 'None'};
             switch (config_att['properties'][key]['type']) {
               case "integer":
-                test_content = test_content + 'api.config.' + key + ' = ' + value + param_type; 
+                script_test_content = script_test_content + 'api.config.' + key + ' = ' + value + param_type; 
                 break;
               case "string":
-                test_content = test_content + 'api.config.' + key + ' = \'' + value + '\' ' + param_type; 
+                script_test_content = script_test_content + 'api.config.' + key + ' = \'' + value + '\' ' + param_type; 
                 break;
               case "array":
                 let arrvalue = "'" + value.join("','") + "'";
-                test_content = test_content + 'api.config.' + key + ' = [' + arrvalue + '] ' + param_type; 
+                script_test_content = script_test_content + 'api.config.' + key + ' = [' + arrvalue + '] ' + param_type; 
                 break;
               default: 
-              test_content = test_content + 'api.config.' + key + ' = \'' + value + '\' ' + param_type; 
+              script_test_content = script_test_content + 'api.config.' + key + ' = \'' + value + '\' ' + param_type; 
             };
           };
         };
-        test_content += '\nmsg = api.Message(attributes={\'operator\':\''+this.answers.operator+'\'},body=None)\n';
+        script_test_content += '\nmsg = api.Message(attributes={\'operator\':\''+this.answers.operator+'\'},body=None)\n';
         for (let ip = 0; ip < op_att['inports'].length; ip++) {
           //this.log('Inport: ' + op_att['inports'][ip]['name']);
-          test_content += 'on_'+op_att['inports'][ip]['name']+'(msg)\n';
+          script_test_content += script_file.slice(0,-3) + '.on_'+op_att['inports'][ip]['name']+'(msg)\n';
         }
-        this.files_content[script_test] = test_content
+        this.log(script_test_content);
+        this.files_content[script_test] = script_test_content
       }
 
       // package-operator specific folders
