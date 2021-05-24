@@ -191,13 +191,6 @@ api = mock_api(__file__)
       this.log('Target directory: ' + dest_path);
       mkdirp(dest_path);
 
-      // Test empty script -> no script
-      /*
-      if ((script_file in this.files_content)  && this.files_content[script_file].length < 20) {
-        this.log('Script exist but has not content. Will be overwritten!')
-        delete this.files_content[script_file]
-      }
-      */
       /***************** 
        * python script
       *****************/
@@ -209,30 +202,61 @@ api = mock_api(__file__)
         // import mock-di-api
         let script_content = import_mock_api + '\n\n';
 
-        // generator or callback
+        script_content += 'import pandas as pd\n';
+        for (let ip = 0; ip < op_att['inports'].length; ip++) {
+          if (op_att['inports'][ip]['type']=='message.file') {
+            script_content += 'import io\n\n';
+            //break;
+          }
+        }
+        
         let call_func = ''
         if (('inports' in op_att) === false || op_att['inports'].length == 0) {
+          // generator 
           call_func = 'gen()';
           script_content += 'def '+call_func+' :\n\tpass\n\n';
           script_content += 'api.add_generator(gen)';
         } else {
+          // call_back 
           for (let ip = 0; ip < op_att['inports'].length; ip++) {
-            //this.log('Inport: ' + op_att['inports'][ip]['name']);
-            call_func = 'on_'+op_att['inports'][ip]['name']+'(msg)'
+            call_func = 'on_'+op_att['inports'][ip]['name']+'(msg)';
             script_content += 'def ' + call_func+' :\n\n';
-            for (let op = 0; op < op_att['outports'].length; op++) {
-              //this.log('Outport: ' + op_att['outports'][op]['name']);
-              script_content += '\tout_msg = None\n';
-              script_content += '\tapi.send(\''+op_att['outports'][op]['name']+'\',out_msg)\n\n';
+            // inport message.table
+            if (op_att['inports'][ip]['type'] == 'message.table') {
+              script_content += '\t# Due to input-format PROPOSED transformation into DataFrame\n'
+              script_content += '\theader = [c[\'name\'] for c in msg.attributes[\'table\'][\'columns\']]\n';
+              script_content += '\tdf = pd.DataFrame(msg.body, columns=header)\n\n';
+            } 
+            // inport message.file
+            if (op_att['inports'][ip]['type'] == 'message.file') {
+              script_content += '\t# Due to input-format PROPOSED transformation into DataFrame\n'
+              script_content += '\tdf = pd.read_csv(io.BytesIO(msg.body))\n\n';
             }
-            script_content += 'api.set_port_callback(\''+op_att['inports'][ip]['name']+'\',on_'+op_att['inports'][ip]['name']+')\n\n';
+            // api.send for each outport
+            for (let op = 0; op < op_att['outports'].length; op++) {
+              if (op_att['outports'][op]['type'] == 'message.table') {
+                script_content += '\t# Due to output-format PROPOSED transformation into message.table\n'
+                script_content += '\tcolumns = []\n';
+                script_content += '\tfor col in df.columns : \n';
+                script_content += '\t\tcolumns.append({"class": str(df[col].dtype),\'name\': col})\n';
+                script_content += '\tatt = {\'table\':{\'columns\':columns,\'name\':\'TABLE\',\'version\':1}}\n';
+                script_content += '\tout_msg = api.Message(attributes=att, body= df.values.tolist())\n'
+              } else {
+                script_content += '\tout_msg = None\n';
+              }
+              let op_datatype = '   # datatype: ' + op_att['outports'][op]['type'] + '\n\n';
+              script_content += '\tapi.send(\''+op_att['outports'][op]['name']+'\',out_msg)' + op_datatype; 
+            }
+            let ip_datatype = ')   # datatype: ' + op_att['inports'][ip]['type'] + '\n\n';  
+            script_content += 'api.set_port_callback(\''+op_att['inports'][ip]['name']+'\',on_'+op_att['inports'][ip]['name']+ip_datatype;
           }
         };
         this.files_content[script_file] = script_content;
-      } else  {
-      /*
-       * ADJUST python script
-      */ 
+
+      } else { 
+        /*
+        * ADJUST python script
+        */ 
         this.log('Adjust script file: '+ script_file);
         //  MOCK_DI_API
         this.files_content[script_file] = import_mock_api +  this.files_content[script_file];
@@ -242,44 +266,58 @@ api = mock_api(__file__)
        * script_test
       **************/ 
       let script_test = script_file.slice(0,-3) + '_test.py' 
+      let script_test_content = '';
       if ((script_test in this.files_content)===false) {
-        this.log('Create newer test script: ' + script_test);
-        let script_script_test_content = `import script
+        this.log('Create new test script: ' + script_test);
+        script_test_content = `import script
 from utils.mock_di_api import mock_api
 from utils.operator_test import operator_test
         
-api = mock_api(__file__)
+api = mock_api(__file__)     # class instance of mock_api
+mock_api.print_send_msg = True  # set class variable for printing api.send
+
 optest = operator_test(__file__)
 `;
         // add all config parameters
         script_test_content += '\n# config parameter \n' ;
-        this.log('1: ' + script_test_content);
         for (let [key, value] of Object.entries(op_att['config'])) {
           if (key !== '$type' && key !== 'script' ) {
             let param_type = '   # datatype : ' + config_att['properties'][key]['type'] + '\n';
             if (value === null) {value = 'None'};
             switch (config_att['properties'][key]['type']) {
               case "integer":
-                script_test_content = script_test_content + 'api.config.' + key + ' = ' + value + param_type; 
+                script_test_content +=  'api.config.' + key + ' = ' + value + param_type; 
                 break;
               case "string":
-                script_test_content = script_test_content + 'api.config.' + key + ' = \'' + value + '\' ' + param_type; 
+                script_test_content +=  'api.config.' + key + ' = \'' + value + '\' ' + param_type; 
                 break;
               case "array":
                 let arrvalue = "'" + value.join("','") + "'";
-                script_test_content = script_test_content + 'api.config.' + key + ' = [' + arrvalue + '] ' + param_type; 
+                script_test_content +=  'api.config.' + key + ' = [' + arrvalue + '] ' + param_type; 
                 break;
               default: 
-              script_test_content = script_test_content + 'api.config.' + key + ' = \'' + value + '\' ' + param_type; 
+                script_test_content +=  'api.config.' + key + ' = \'' + value + '\' ' + param_type; 
             };
           };
         };
-        script_test_content += '\nmsg = api.Message(attributes={\'operator\':\''+this.answers.operator+'\'},body=None)\n';
+        
         for (let ip = 0; ip < op_att['inports'].length; ip++) {
-          //this.log('Inport: ' + op_att['inports'][ip]['name']);
+          if (op_att['inports'][ip]['type'] == 'message.file') {
+            script_test_content += 'data'+ip+' = optest.get_file(\'test_file'+ip+'.csv\')\n';
+          } else if (op_att['inports'][ip]['type'] == 'message.table') {
+            script_test_content += 'data'+ip+' = optest.get_msgtable(\'test_file'+ip+'.csv\')\n';
+          } else {
+            script_test_content += 'data'+ip+' = None\n'
+          }
+          script_test_content += '\nmsg = api.Message(attributes={\'operator\':\''+this.answers.operator+'\'},body = data'+ip+')\n';
           script_test_content += script_file.slice(0,-3) + '.on_'+op_att['inports'][ip]['name']+'(msg)\n';
         }
-        this.log(script_test_content);
+        script_test_content += `# print result list
+for mt in mock_api.msg_list :
+  print('Port: {}'.format(mt['port']))
+  print('Data: {}'.format(mt['data']))
+  #print(optest.msgtable2df(mt['data']))  
+  `
         this.files_content[script_test] = script_test_content
       }
 
@@ -305,21 +343,24 @@ optest = operator_test(__file__)
       let operator_json = JSON.parse(operator_json_raw);
       let script_file = operator_json['config']['script'].slice(7);
       let script_file_path = path.join(source_path,script_file);
+      
       let script_content = fs.readFileSync(script_file_path,'utf8');
-
-      // remove mock_api
       script_content = script_content.replace(import_mock_api,'');
-
-      fs.writeFileSync(script_file_path, script_content);
+      let script_file_tmp = 'tmp_'+script_file
+      let script_file_tmp_path = path.join(source_path,script_file_tmp);
+      this.log('Write tmp script-file for being uploaded: ' + script_file_tmp_path);
+      fs.writeFileSync(script_file_tmp_path, script_content);
 
       fs.readdirSync(source_path).forEach(file => {
-        _vctl_put(this,path.join(source_path,file),path.join(target_path,file));
+        if (file == script_file_tmp) {
+          _vctl_put(this,path.join(source_path,file),path.join(target_path,script_file));
+        } else if ((file !== '__pycache__') && (file !== script_file)) {
+          _vctl_put(this,path.join(source_path,file),path.join(target_path,file));
+        }
       });
 
       // replacements commenting and commenting out
       script_content = script_content.replace(/#\s*from utils.mock_di_api import \*/,'from utils.mock_di_api import *');
-
-
       fs.writeFileSync(script_file_path, script_content);
 
     } else {

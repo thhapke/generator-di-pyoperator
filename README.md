@@ -1,4 +1,4 @@
-# generator-di-operator
+# generator-di-pyoperator
 
 Yeoman generator for developing and testing standalone/offline SAP Data Intelligence python operators. 
 
