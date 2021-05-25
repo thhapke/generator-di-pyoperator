@@ -108,7 +108,7 @@ module.exports = class extends Generator {
         store: true
       },
       {
-        type: "input",
+        type: "password",
         name: "pwd",
         message: "Password",
         store: true
@@ -235,7 +235,8 @@ api = mock_api(__file__)
             // api.send for each outport
             for (let op = 0; op < op_att['outports'].length; op++) {
               if (op_att['outports'][op]['type'] == 'message.table') {
-                script_content += '\t# Due to output-format PROPOSED transformation into message.table\n'
+                script_content += '\t# Due to output-format PROPOSED transformation into message.table\n';
+                script_content += '\t#df.columns = map(str.upper, df.columns)  # for saving to DB upper case is usual\n';
                 script_content += '\tcolumns = []\n';
                 script_content += '\tfor col in df.columns : \n';
                 script_content += '\t\tcolumns.append({"class": str(df[col].dtype),\'name\': col})\n';
@@ -358,10 +359,6 @@ for mt in mock_api.msg_list :
           _vctl_put(this,path.join(source_path,file),path.join(target_path,file));
         }
       });
-
-      // replacements commenting and commenting out
-      script_content = script_content.replace(/#\s*from utils.mock_di_api import \*/,'from utils.mock_di_api import *');
-      fs.writeFileSync(script_file_path, script_content);
 
     } else {
       this.log('Unknown direction: (D)ownload or (U)pload. ' + this.answers.direction)

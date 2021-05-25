@@ -2,8 +2,11 @@
 import os
 import pandas as pd
 
-
-
+class toapi:
+    class Message:
+        def __init__(self, body=None, attributes=""):
+            self.body = body
+            self.attributes = attributes
 
 class operator_test :
 
@@ -19,16 +22,24 @@ class operator_test :
 
         return os.path.join(project_root,'testdata',package,operator, testdata_file)
 
+    #### FILE input (simumlates File data on inport)
     def get_file(self,testdata_file) :
         testfile = self._filename(testdata_file)
         return open(os.path.join(testfile), mode='rb').read()
 
+    #### TABLE INPUT csv-testdata  (simumlates message.table data on inport)
     def get_msgtable(self,testdata_file) :
-        map = {'int64':'BIGINT','float64':'DOUBLE','object':'NVARCHAR','bool':'BOOLEAN'}
+        hanamap = {'int64': 'BIGINT', 'float64': 'DOUBLE', 'object': 'NVARCHAR', 'bool': 'BOOLEAN'}
         testfile = self._filename(testdata_file)
         df = pd.read_csv(testfile)
         columns = []
         for col in df.columns :
-            columns.append({"class": str(df[df.col].dtype),"name": df.col, "type": {"hana": map(df.col.dtype)}})
-        att = {'table':columns,'name':os.path.basename(self.script_path),'version':1}
-        return api.Message(attributes=att,body = df.values.tolist())
+            columns.append({"class": str(df[col].dtype),"name": col, "type": {"hana": map(df[col].dtype)}})
+        att = {'table':columns,'name':os.path.basename(testfile).split('.')[0],'version':1}
+
+        return toapi.Message(attributes=att,body=df.values.tolist())
+
+    def msgtable2df(self,msg):
+        header = [c['name'] for c in msg.attributes['table']['columns']]
+        return pd.DataFrame(msg.body, columns=header)
+
