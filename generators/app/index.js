@@ -191,30 +191,71 @@ api = mock_api(__file__)
       this.log('Target directory: ' + dest_path);
       mkdirp(dest_path);
 
+      /*
+      * Config parameter
+      */  
+      let config_params= '# config parameter \n' ;
+      let config_params_indent = '    ' + config_params;
+      for (let [param,pvalues] of Object.entries(config_att['properties'])) {
+        //this.log('param: ' + param);
+        if (param !== 'script' && param !== 'codelanguage' ) {
+          let param_type = '   # datatype : ' + config_att['properties'][param]['type'] + '\n';
+          let param_str = '';
+          if (param in op_att['config']) {
+            value = op_att['config'][param]
+            switch (config_att['properties'][param]['type']) {
+              case "integer":
+                param_str =  'api.config.' + param + ' = ' + value + param_type; 
+                break;
+              case "string":
+                param_str =  'api.config.' + param + ' = \'' + value + '\' ' + param_type; 
+                break;
+              case "array":
+                let arrvalue = "'" + value.join("','") + "'";
+                param_str =  'api.config.' + param + ' = [' + arrvalue + '] ' + param_type; 
+                break;
+              default: 
+                param_str =  'api.config.' + param + ' = \'' + value + '\' ' + param_type; 
+            };  
+          } else {
+            param_str =  'api.config.' + param + ' = ' + 'None' + param_type
+          }
+          config_params += param_str;
+          config_params_indent += '    #' + param_str;
+        };
+      };
+
       /***************** 
        * python script
       *****************/
-      if ((script_file in this.files_content) === false)   {
+      if (((script_file in this.files_content) === false) || (this.files_content[script_file].length<5) ) {
         /*
         * NEW python script
         */
         this.log('Script file not found: ' + script_file + '  -> New scriptfile created! ');
         // import mock-di-api
-        let script_content = import_mock_api + '\n\n';
+        let script_content = import_mock_api + '\n';
 
         script_content += 'import pandas as pd\n';
         for (let ip = 0; ip < op_att['inports'].length; ip++) {
           if (op_att['inports'][ip]['type']=='message.file') {
-            script_content += 'import io\n\n';
-            //break;
+            script_content += 'import io\n';
           }
         }
+        for (let op = 0; op < op_att['outports'].length; op++) {
+          if (op_att['outports'][op]['type']=='message.file') {
+            script_content += 'import os\n';
+          }
+        }
+        script_content += '\n\n';
         
         let call_func = ''
         if (('inports' in op_att) === false || op_att['inports'].length == 0) {
           // generator 
           call_func = 'gen()';
-          script_content += 'def '+call_func+' :\n\tpass\n\n';
+
+          script_content += 'def '+call_func+' :\n\n';
+          script_content += config_params_indent + '\n\n';
           script_content += 'api.add_generator(gen)';
         } else {
           // call_back 
@@ -223,30 +264,57 @@ api = mock_api(__file__)
             script_content += 'def ' + call_func+' :\n\n';
             // inport message.table
             if (op_att['inports'][ip]['type'] == 'message.table') {
-              script_content += '\t# Due to input-format PROPOSED transformation into DataFrame\n'
-              script_content += '\theader = [c[\'name\'] for c in msg.attributes[\'table\'][\'columns\']]\n';
-              script_content += '\tdf = pd.DataFrame(msg.body, columns=header)\n\n';
+              script_content += '    # Due to input-format PROPOSED transformation into DataFrame\n'
+              script_content += '    header = [c[\'name\'] for c in msg.attributes[\'table\'][\'columns\']]\n';
+              script_content += '    df = pd.DataFrame(msg.body, columns=header)\n\n';
             } 
             // inport message.file
             if (op_att['inports'][ip]['type'] == 'message.file') {
-              script_content += '\t# Due to input-format PROPOSED transformation into DataFrame\n'
-              script_content += '\tdf = pd.read_csv(io.BytesIO(msg.body))\n\n';
+              script_content += '    # Due to input-format PROPOSED transformation into DataFrame\n'
+              script_content += '    df = pd.read_csv(io.BytesIO(msg.body))\n\n';
             }
+            
+            script_content += config_params_indent + '\n\n';
+
             // api.send for each outport
             for (let op = 0; op < op_att['outports'].length; op++) {
               if (op_att['outports'][op]['type'] == 'message.table') {
-                script_content += '\t# Due to output-format PROPOSED transformation into message.table\n';
-                script_content += '\t#df.columns = map(str.upper, df.columns)  # for saving to DB upper case is usual\n';
-                script_content += '\tcolumns = []\n';
-                script_content += '\tfor col in df.columns : \n';
-                script_content += '\t\tcolumns.append({"class": str(df[col].dtype),\'name\': col})\n';
-                script_content += '\tatt = {\'table\':{\'columns\':columns,\'name\':\'TABLE\',\'version\':1}}\n';
-                script_content += '\tout_msg = api.Message(attributes=att, body= df.values.tolist())\n'
-              } else {
-                script_content += '\tout_msg = None\n';
+                script_content += `
+    # Due to output-format PROPOSED transformation into message.table
+    #df.columns = map(str.upper, df.columns)  # for saving to DB upper case is usual
+    columns = []
+    for col in df.columns : 
+        columns.append({"class": str(df[col].dtype),\'name\': col})
+    att = {\'table\':{\'columns\':columns,\'name\':\'TABLE\',\'version\':1}}
+    out_msg = api.Message(attributes=att, body= df.values.tolist())
+`
+              } else if (op_att['outports'][op]['type'] == 'message.file') {
+                script_content += `
+    csv = df.to_csv(index='false')
+
+    att = dict(msg.attributes)
+    filename = ''
+    if not filename and 'table' in att and 'name' in att['table'] :
+        filename = att['table']['name']
+    else :
+        filename = 'data.csv'
+    if not 'file' in att :
+        connectionID = "DI_DATA_LAKE"
+        filename = att['table']['name'] + '.csv'
+        path = os.path.join('/shared/',filename)
+        att['file'] = {"connection": {"configurationType": "Connection Management", "connectionID": connectionID },\
+                       "path": path, "size": 1, "basename":filename}
+              
+    out_msg = api.Message(attributes=att,body=csv)
+`
+              }  else {
+                script_content += `
+      att = dict(msg.attributes)
+      out_msg = api.Message(attributes=att,body=None)
+    `
               }
-              let op_datatype = '   # datatype: ' + op_att['outports'][op]['type'] + '\n\n';
-              script_content += '\tapi.send(\''+op_att['outports'][op]['name']+'\',out_msg)' + op_datatype; 
+              let op_datatype = '    # datatype: ' + op_att['outports'][op]['type'] + '\n\n';
+              script_content += '    api.send(\''+op_att['outports'][op]['name']+'\',out_msg)' + op_datatype; 
             }
             let ip_datatype = ')   # datatype: ' + op_att['inports'][ip]['type'] + '\n\n';  
             script_content += 'api.set_port_callback(\''+op_att['inports'][ip]['name']+'\',on_'+op_att['inports'][ip]['name']+ip_datatype;
@@ -279,39 +347,20 @@ mock_api.print_send_msg = True  # set class variable for printing api.send
 
 optest = operator_test(__file__)
 `;
-        // add all config parameters
-        script_test_content += '\n# config parameter \n' ;
-        for (let [key, value] of Object.entries(op_att['config'])) {
-          if (key !== '$type' && key !== 'script' ) {
-            let param_type = '   # datatype : ' + config_att['properties'][key]['type'] + '\n';
-            if (value === null) {value = 'None'};
-            switch (config_att['properties'][key]['type']) {
-              case "integer":
-                script_test_content +=  'api.config.' + key + ' = ' + value + param_type; 
-                break;
-              case "string":
-                script_test_content +=  'api.config.' + key + ' = \'' + value + '\' ' + param_type; 
-                break;
-              case "array":
-                let arrvalue = "'" + value.join("','") + "'";
-                script_test_content +=  'api.config.' + key + ' = [' + arrvalue + '] ' + param_type; 
-                break;
-              default: 
-                script_test_content +=  'api.config.' + key + ' = \'' + value + '\' ' + param_type; 
-            };
-          };
-        };
+
+        script_test_content += config_params + '\n\n';
         
         for (let ip = 0; ip < op_att['inports'].length; ip++) {
+          let idx = ip.toString();
+          if (idx == '0') {idx=''};
           if (op_att['inports'][ip]['type'] == 'message.file') {
-            script_test_content += 'data'+ip+' = optest.get_file(\'test_file'+ip+'.csv\')\n';
+            script_test_content += 'msg'+idx+' = optest.get_file(\'test_file'+idx+'.csv\')\n';
           } else if (op_att['inports'][ip]['type'] == 'message.table') {
-            script_test_content += 'data'+ip+' = optest.get_msgtable(\'test_file'+ip+'.csv\')\n';
+            script_test_content += 'msg'+idx+' = optest.get_msgtable(\'testdata'+idx+'.csv\')\n';
           } else {
-            script_test_content += 'data'+ip+' = None\n'
+            script_test_content += 'msg = api.Message(attributes={\'operator\':\''+this.answers.operator+'\'},body = None)\n';
           }
-          script_test_content += '\nmsg = api.Message(attributes={\'operator\':\''+this.answers.operator+'\'},body = data'+ip+')\n';
-          script_test_content += script_file.slice(0,-3) + '.on_'+op_att['inports'][ip]['name']+'(msg)\n';
+          script_test_content += script_file.slice(0,-3) + '.on_'+op_att['inports'][ip]['name']+'(msg'+idx+')\n';
         }
         script_test_content += `# print result list
 for mt in mock_api.msg_list :

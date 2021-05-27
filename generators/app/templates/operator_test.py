@@ -34,8 +34,10 @@ class operator_test :
         df = pd.read_csv(testfile)
         columns = []
         for col in df.columns :
-            columns.append({"class": str(df[col].dtype),"name": col, "type": {"hana": map(df[col].dtype)}})
-        att = {'table':columns,'name':os.path.basename(testfile).split('.')[0],'version':1}
+            dty = str(df[col].dtype)
+            hanadtype = hanamap[dty]
+            columns.append({"class": str(df[col].dtype),"name": col, "type": {"hana": hanadtype }})
+        att = {'table':{'columns':columns,'name':os.path.basename(testfile).split('.')[0],'version':1}}
 
         return toapi.Message(attributes=att,body=df.values.tolist())
 
