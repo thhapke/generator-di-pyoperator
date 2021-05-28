@@ -37,7 +37,7 @@ class operator_test :
             dty = str(df[col].dtype)
             hanadtype = hanamap[dty]
             columns.append({"class": str(df[col].dtype),"name": col, "type": {"hana": hanadtype }})
-        att = {'table':{'columns':columns,'name':os.path.basename(testfile).split('.')[0],'version':1}}
+        att = {'table':{'columns':columns,'version':1},'table_name':os.path.basename(testfile).split('.')[0]}
 
         return toapi.Message(attributes=att,body=df.values.tolist())
 

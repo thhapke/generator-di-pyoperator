@@ -7,7 +7,7 @@ const fs = require('fs');
 
 
 // GLOBAL Variables
-const operators_path = '/files/vflow/subengines/com/sap/python36/operators/';
+const vflow_operators_path = '/files/vflow/subengines/com/sap/python36/operators/';
 const exclude_list = ['.git','.gitignore','LICENSE','README.md'];
 
 //VCTL LOGIN
@@ -20,11 +20,11 @@ function _vctl_login(gen,di_url,tenant,user,pwd) {
 function _vctl_ls(gen,op_package) {
   let package_path = ''
   if (op_package == '.') {
-    package_path = path.join(operators_path)
+    package_path = path.join(vflow_operators_path)
   }
   else {
     let operator_path = op_package.replace('.','/')
-    package_path = path.join(operators_path,operator_path)
+    package_path = path.join(vflow_operators_path,operator_path)
   };
   // call vctl
   const vctl_ls = ['vrep','user','ls',package_path];
@@ -41,6 +41,12 @@ function _vctl_ls(gen,op_package) {
   });
   return files;
 };  
+
+// Mkdir VCTL file
+function _vctl_mkdir(gen,path) {
+  const vctl_mkdir = ['vrep','user','mkdir',path];
+  gen.spawnCommandSync('vctl',vctl_mkdir);
+};
 
 // Read VCTL file
 function _vctl_read(gen,operator_path) {
@@ -67,8 +73,10 @@ module.exports = class extends Generator {
 
     //this.argument("init",{type: String,desc:'Initialize project by copying necessary files. Attention: overrides changed files!'})
     this.option("init",{type: Boolean,default:false,desc:'Initialize project by copying necessary files. Attention: overrides changed files!'});
+    this.option("overwrite",{type: Boolean,default:false,desc:'Creating new script.py and script_test.py. OVERRIDES downloaded script-files!'});
     this.files_content = {};
     this.operator_dir = '';
+
   }
   
   async prompting() {
@@ -123,6 +131,9 @@ module.exports = class extends Generator {
 
     //this.answers.direction = this.answers.direction.toUpperCase();
     this.operator_dir = this.answers.operator.replace('.','/');
+    this.package_name = this.answers.operator.split('.')[0];
+    this.operator_name = this.answers.operator.split('.')[1];
+    this.log('Package: ' + this.package_name + '   Operator: ' + this.operator_name);
 
     //login
     this.log('Login into SAP Data Intelligence')
@@ -137,13 +148,32 @@ module.exports = class extends Generator {
       // copy files 
       for (let f = 0; f < files.length; f++ ) {
         // Download file and add to files_content dict
-        let operator_path = path.join(operators_path,this.operator_dir,files[f]);
+        let operator_path = path.join(vflow_operators_path,this.operator_dir,files[f]);
         this.log('Copy file: ' + files[f] )
         this.files_content[files[f]] = _vctl_read(this,operator_path);
       };
     };
   };
 
+  /*
+  * Change operator name
+  * - When copying an operator configSchema.json and operator.json has been adjusted as well 
+  */
+  adjustOperatorName() {
+    /*** operator.json ***/
+    let operator_path = path.join(this.destinationRoot(),'operators',this.package_name,this.operator_name);
+    let operator_json_raw = fs.readFileSync(path.join(operator_path,'operator.json'),'utf8');
+    let operator_json = JSON.parse(operator_json_raw);
+    operator_json['description'] = this.operator_name.charAt(0).toUpperCase() + this.operator_name.slice(1);
+    operator_json['config']['$tpye'] = 'http://sap.com/vflow/'+this.package_name+'.'+this.operator_name+'.configSchema.json';
+    fs.writeFileSync(path.join(operator_path,'operator.json'), JSON.stringify(operator_json,null, 4));
+
+    /*** configSchema.json ***/
+    let schema_json_raw = fs.readFileSync(path.join(operator_path,'configSchema.json'),'utf8');
+    let schema_json = JSON.parse(schema_json_raw);
+    schema_json['$id'] = "http://sap.com/vflow/" + this.package_name + '.' + this.operator_name + '.configSchema.json';
+    fs.writeFileSync(path.join(operator_path,'configSchema.json'), JSON.stringify(schema_json,null, 4));
+  };
   
   writing() {
 
@@ -191,6 +221,12 @@ api = mock_api(__file__)
       this.log('Target directory: ' + dest_path);
       mkdirp(dest_path);
 
+      let num_inports = 0 ;
+      if (('inports' in op_att))  {
+        num_inports = op_att['inports'].length;
+      }
+      this.log('Number of inports: ' + num_inports);
+
       /*
       * Config parameter
       */  
@@ -202,7 +238,7 @@ api = mock_api(__file__)
           let param_type = '   # datatype : ' + config_att['properties'][param]['type'] + '\n';
           let param_str = '';
           if (param in op_att['config']) {
-            value = op_att['config'][param]
+            let value = op_att['config'][param]
             switch (config_att['properties'][param]['type']) {
               case "integer":
                 param_str =  'api.config.' + param + ' = ' + value + param_type; 
@@ -228,16 +264,20 @@ api = mock_api(__file__)
       /***************** 
        * python script
       *****************/
-      if (((script_file in this.files_content) === false) || (this.files_content[script_file].length<5) ) {
+      if (((script_file in this.files_content) === false) || (this.files_content[script_file].length<5) || (this.options.overwrite) ) {
         /*
         * NEW python script
         */
-        this.log('Script file not found: ' + script_file + '  -> New scriptfile created! ');
+        if (this.options.overwrite) {
+          this.log('Script-files created newly and overwrites downloaded!');
+        } else {
+            this.log('Script file not found: ' + script_file + '  -> New scriptfile created! ');
+        }
         // import mock-di-api
         let script_content = import_mock_api + '\n';
 
         script_content += 'import pandas as pd\n';
-        for (let ip = 0; ip < op_att['inports'].length; ip++) {
+        for (let ip = 0; ip < num_inports; ip++) {
           if (op_att['inports'][ip]['type']=='message.file') {
             script_content += 'import io\n';
           }
@@ -250,7 +290,7 @@ api = mock_api(__file__)
         script_content += '\n\n';
         
         let call_func = ''
-        if (('inports' in op_att) === false || op_att['inports'].length == 0) {
+        if (('inports' in op_att) === false || num_inports == 0) {
           // generator 
           call_func = 'gen()';
 
@@ -259,7 +299,7 @@ api = mock_api(__file__)
           script_content += 'api.add_generator(gen)';
         } else {
           // call_back 
-          for (let ip = 0; ip < op_att['inports'].length; ip++) {
+          for (let ip = 0; ip < num_inports; ip++) {
             call_func = 'on_'+op_att['inports'][ip]['name']+'(msg)';
             script_content += 'def ' + call_func+' :\n\n';
             // inport message.table
@@ -290,20 +330,19 @@ api = mock_api(__file__)
 `
               } else if (op_att['outports'][op]['type'] == 'message.file') {
                 script_content += `
-    csv = df.to_csv(index='false')
-
+    # Sending to outport ${op_att['outports'][op]['name']}
+    csv = df.to_csv(index=False)
     att = dict(msg.attributes)
     filename = ''
-    if not filename and 'table' in att and 'name' in att['table'] :
-        filename = att['table']['name']
+    if not filename and 'table_name' in att  :
+        filename = att['table_name'] + '.csv'
     else :
         filename = 'data.csv'
     if not 'file' in att :
         connectionID = "DI_DATA_LAKE"
-        filename = att['table']['name'] + '.csv'
         path = os.path.join('/shared/',filename)
-        att['file'] = {"connection": {"configurationType": "Connection Management", "connectionID": connectionID },\
-                       "path": path, "size": 1, "basename":filename}
+        att['file'] = {"connection": {"configurationType": "Connection Management", "connectionID": connectionID },\\
+                       "path": path, "size": 1}
               
     out_msg = api.Message(attributes=att,body=csv)
 `
@@ -336,9 +375,9 @@ api = mock_api(__file__)
       **************/ 
       let script_test = script_file.slice(0,-3) + '_test.py' 
       let script_test_content = '';
-      if ((script_test in this.files_content)===false) {
+      if (((script_test in this.files_content)===false) || (this.options.overwrite)) {
         this.log('Create new test script: ' + script_test);
-        script_test_content = `import script
+        script_test_content = `import ${script_file.slice(0,-3)}
 from utils.mock_di_api import mock_api
 from utils.operator_test import operator_test
         
@@ -349,23 +388,28 @@ optest = operator_test(__file__)
 `;
 
         script_test_content += config_params + '\n\n';
-        
-        for (let ip = 0; ip < op_att['inports'].length; ip++) {
-          let idx = ip.toString();
-          if (idx == '0') {idx=''};
-          if (op_att['inports'][ip]['type'] == 'message.file') {
-            script_test_content += 'msg'+idx+' = optest.get_file(\'test_file'+idx+'.csv\')\n';
-          } else if (op_att['inports'][ip]['type'] == 'message.table') {
-            script_test_content += 'msg'+idx+' = optest.get_msgtable(\'testdata'+idx+'.csv\')\n';
-          } else {
-            script_test_content += 'msg = api.Message(attributes={\'operator\':\''+this.answers.operator+'\'},body = None)\n';
+        if (num_inports > 0 )  {
+          for (let ip = 0; ip < num_inports; ip++) {
+            let idx = ip.toString();
+            if (idx == '0') {idx=''};
+            if (op_att['inports'][ip]['type'] == 'message.file') {
+              script_test_content += 'msg'+idx+' = optest.get_file(\'test_file'+idx+'.csv\')\n';
+            } else if (op_att['inports'][ip]['type'] == 'message.table') {
+              script_test_content += 'msg'+idx+' = optest.get_msgtable(\'testdata'+idx+'.csv\')\n';
+            } else {
+              script_test_content += 'msg = api.Message(attributes={\'operator\':\''+this.answers.operator+'\'},body = None)\n';
+            }
+            script_test_content += script_file.slice(0,-3) + '.on_'+op_att['inports'][ip]['name']+'(msg'+idx+')\n';
           }
-          script_test_content += script_file.slice(0,-3) + '.on_'+op_att['inports'][ip]['name']+'(msg'+idx+')\n';
-        }
+        } else {
+          script_test_content += script_file.slice(0,-3) + '.gen()\n';
+        } 
         script_test_content += `# print result list
 for mt in mock_api.msg_list :
+  print('*********************')
   print('Port: {}'.format(mt['port']))
-  print('Data: {}'.format(mt['data']))
+  print('Data: {}'.format(mt['data'].attributes))
+  print('Data: {}'.format(mt['data'].body))
   #print(optest.msgtable2df(mt['data']))  
   `
         this.files_content[script_test] = script_test_content
@@ -385,7 +429,7 @@ for mt in mock_api.msg_list :
     } else if (this.answers.direction == 'U') {
       this.log('***** Upload *****');
       let source_path = path.join(this.destinationRoot(),'operators',this.operator_dir);
-      let target_path = path.join(operators_path,this.operator_dir);
+      let target_path = path.join(vflow_operators_path,this.operator_dir);
       //this.log(source_path + ' -> ' + target_path);
 
       // comment script file
@@ -401,6 +445,32 @@ for mt in mock_api.msg_list :
       this.log('Write tmp script-file for being uploaded: ' + script_file_tmp_path);
       fs.writeFileSync(script_file_tmp_path, script_content);
 
+      // check if target_path exist
+      let di_packages = _vctl_ls(this,'.');
+      this.log('Packages on DI: ' +di_packages);
+      if ((di_packages.includes(this.package_name))=== false) {
+        // package path
+        this.log('Package folder does not exist on DI: '+this.package_name);
+        let op_package_path = path.join(vflow_operators_path,this.package_name);
+        this.log(op_package_path);
+        _vctl_mkdir(this,op_package_path);
+        let operator_path = path.join(op_package_path,this.operator_name);
+        this.log(operator_path);
+        _vctl_mkdir(this,operator_path);
+        this.adjustOperatorName()
+      } else {
+        // operator path
+        let op_package_path = path.join(vflow_operators_path,this.package_name);
+        let di_packages_ops = _vctl_ls(this,this.package_name);
+        this.log('Operators in package: ' + di_packages_ops);
+        if ((di_packages_ops.includes(this.operator_name))=== false) {
+          let operator_path = path.join(op_package_path,this.operator_name);
+          this.log('Operator folder does not exist on DI. Created: ' + operator_path);
+          _vctl_mkdir(this,operator_path);
+          this.adjustOperatorName()
+        };
+      };
+
       fs.readdirSync(source_path).forEach(file => {
         if (file == script_file_tmp) {
           _vctl_put(this,path.join(source_path,file),path.join(target_path,script_file));
@@ -408,6 +478,7 @@ for mt in mock_api.msg_list :
           _vctl_put(this,path.join(source_path,file),path.join(target_path,file));
         }
       });
+      
 
     } else {
       this.log('Unknown direction: (D)ownload or (U)pload. ' + this.answers.direction)
