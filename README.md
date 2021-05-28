@@ -12,13 +12,19 @@ The main features are
 * Creating a separate test script for testing the operator-script
 * Providing a 'operator-test' package for mimicking inport-data
 
+** ATTENTION**: This only works properly for operators created within a package, this means when creating a new operator the name should be preceded by a package-name like ```<package>.<operator>```.
+
 
 ## Usage
 
 ### CLI call
-```yo di-operator [--init]```
+```yo di-operator [--init] [--overwrite]```
 
-The option ```--init```creates the folders needed for the project and saves the 'mock-di-api.py' to 'utils/. You only need this option for initializing the project. Attention: If you have modified 'mock-di-api' it will be overridden.
+```--init``` creates the folders needed for the project and saves the 'mock-di-api.py' to 'utils/. You only need this option for initializing the project. Attention: If you have modified 'mock-di-api' it will be overridden.
+
+```--overwrite``` creates the script.py and script_test.py newly and overwrites existing python scripts. 
+
+
 
 ### Prompts
 
@@ -32,8 +38,11 @@ The option ```--init```creates the folders needed for the project and saves the 
 
 ## Installation 
 
+### System Management Command-Line Client (vctl) 
+The whole interaction works with vctl. Please have a look to the [documentation](https://help.sap.com/viewer/0b99871a1d994d2ea89598fe59d16cf9/3.0.latest/en-US/b13e0b4fe2574b3881e3c7ef1ad2a640.html) for downloading the script. 
+
 ### YEOMAN
-Yeoman is a scaffolding tool creating the framework and templates that you need for a quick start.
+Yeoman is a scaffolding tool creating the framework and templates that you need for a quick start. The generator is based on YEOMAN and you find more information who to write yeoman generators on [yeoman.io](https://yeoman.io/authoring/).
 
 1. Installing ```npm```, a JavaScript software registry and package installation tool 
     * MacOs: ```brew install node``` 
@@ -44,6 +53,8 @@ Yeoman is a scaffolding tool creating the framework and templates that you need 
 
 ### Local SAP Data Intelligence Operator deployment
 
+For developing the operators locally you do not need a git repository. I have created a personal gitHub repository for all my custom operators that I clone. Most of the python-IDEs might have an integrated git and a remote repository integration, at least VSCode and PyCharm does. 
+
 0. Create Git - Repository <project>
 1. Clone repository locally or make project directory <project>
 2. ```cd project````
@@ -52,6 +63,8 @@ Yeoman is a scaffolding tool creating the framework and templates that you need 
 
 
 ## Details of the di-pyoperator Generator
+
+The whole intention of this project is to ease the development of Python operators by connecting a local IDE with an SAP Data Intelligence instance. Because there is no connection with an DI instance except during the download and upload process you need to mock the APIs of DI. In addtion to this I thought some code structure might be helpful when creating an operator script. The premise is that most Python operators are working with data provided as a csv-byte stream, message or message.table therefore the scaffold code is providing utilities for this kind of formats. Of course you can always remove the unused code.  
 
 ## Creates Project Folder Structure
 
@@ -125,10 +138,8 @@ This is only a start and can be extended. Be careful when using the cmd ```yo di
 
 
 
-## Open Tasks
+## Support
 
-* Generating new operator standalone without previously creating one in SAP Data Intelligence modeler
-* Inline scripts
-* Adding git repository
-* Utility functions for creating test data like reading csv-file from testdata and providing it as a message.table 
+I am using this tool myself and have therefore an intrinsic motivation for improving the code and extending it with useful features. Nonetheless my main job is a Product Manager for SAP Data Intelligence.  Having said this please raise an issue when you face one but have some patience.  
 
+Admittedly I am not an experienced nodejs-developer yet (or better this was my first bigger nodejs-project) and thus the code organization has some room for improvement. Any help here is much appreciated. Another conviction: writing javascript has intensified my love of Python ;). 
