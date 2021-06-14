@@ -149,9 +149,11 @@ module.exports = class extends Generator {
       for (let f = 0; f < files.length; f++ ) {
         // Download file and add to files_content dict
         let operator_path = path.join(vflow_operators_path,this.operator_dir,files[f]);
-        this.log('Copy file: ' + files[f] )
+        this.log('Read file from SAP DI: ' + files[f] );
         this.files_content[files[f]] = _vctl_read(this,operator_path);
+        this.log('Sucessfully downloaded');
       };
+      this.log('All files read')
     };
   };
 
@@ -159,7 +161,8 @@ module.exports = class extends Generator {
   * Change operator name
   * - When copying an operator configSchema.json and operator.json has been adjusted as well 
   */
-  adjustOperatorName() {
+  _adjustOperatorName() {
+    this.log('Adjust Operator Name');
     /*** operator.json ***/
     let operator_path = path.join(this.destinationRoot(),'operators',this.package_name,this.operator_name);
     let operator_json_raw = fs.readFileSync(path.join(operator_path,'operator.json'),'utf8');
@@ -195,13 +198,12 @@ module.exports = class extends Generator {
 from utils.mock_di_api import mock_api
 api = mock_api(__file__)
 `
-
-
+    this.log('Start scaffolding');
     /******
      *  Download files from DI
     ******/
     if (this.answers.direction == 'D') {
-
+      this.log('Prepare for saving data')
       let config_att = JSON.parse(this.files_content['configSchema.json']);
       let op_att = JSON.parse(this.files_content['operator.json']);
       let script_file = '';
@@ -277,6 +279,7 @@ api = mock_api(__file__)
         let script_content = import_mock_api + '\n';
 
         script_content += 'import pandas as pd\n';
+        script_content += 'import copy\n';
         for (let ip = 0; ip < num_inports; ip++) {
           if (op_att['inports'][ip]['type']=='message.file') {
             script_content += 'import io\n';
@@ -288,19 +291,54 @@ api = mock_api(__file__)
           }
         }
         script_content += '\n\n';
-        
-        let call_func = ''
-        if (('inports' in op_att) === false || num_inports == 0) {
-          // generator 
-          call_func = 'gen()';
 
-          script_content += 'def '+call_func+' :\n\n';
+
+        if (('inports' in op_att) === false || num_inports == 0) {
+          // GENERATOR
+          let call_func = 'gen()';
+
+          script_content += 'def gen() :\n\n';
           script_content += config_params_indent + '\n\n';
+
+          // api.send for each outport
+          for (let op = 0; op < op_att['outports'].length; op++) {
+            if (op_att['outports'][op]['type'] == 'message.table') {
+              script_content += `
+    # Sending to outport ${op_att['outports'][op]['name']}
+    # Due to output-format PROPOSED transformation into message.table
+    df = pd.DataFrame(data={'col1': [1, 2], 'col2': ['ab', 'cd']})
+    #df.columns = map(str.upper, df.columns)  # for saving to DB upper case is usual
+    columns = []
+    for col in df.columns : 
+        columns.append({"class": str(df[col].dtype),\'name\': col})
+    att = {'operator':'generator',\'table\':{\'columns\':columns,\'name\':\'TABLE\',\'version\':1}
+    out_msg = api.Message(attributes=att, body= df.values.tolist())
+`
+            } else if (op_att['outports'][op]['type'] == 'message.file') {
+                script_content += `
+    # Sending to outport ${op_att['outports'][op]['name']}
+    csv = df.to_csv(index=False)
+    att = {'operator':'generator','file' : {"connection": {"configurationType": "Connection Management", "connectionID": "DI_DATA_LAKE" },\\
+                   "path": "/shared/data.csv", "size": 1}}
+    out_msg = api.Message(attributes=att,body=csv)
+`
+            }  if (op_att['inports'][ip]['type'] == 'message') {
+                script_content += `
+    # Sending to outport ${op_att['outports'][op]['name']}
+    att = {'operator':'generator'}
+    out_msg = api.Message(attributes=att,body=None)
+`
+            } else {
+                script_content += `
+    out_msg = None
+`
+              }
+          }
           script_content += 'api.add_generator(gen)';
         } else {
-          // call_back 
+          // CALLBACK
           for (let ip = 0; ip < num_inports; ip++) {
-            call_func = 'on_'+op_att['inports'][ip]['name']+'(msg)';
+            let call_func = 'on_'+op_att['inports'][ip]['name']+'(msg)';
             script_content += 'def ' + call_func+' :\n\n';
             // inport message.table
             if (op_att['inports'][ip]['type'] == 'message.table') {
@@ -309,9 +347,13 @@ api = mock_api(__file__)
               script_content += '    df = pd.DataFrame(msg.body, columns=header)\n\n';
             } 
             // inport message.file
-            if (op_att['inports'][ip]['type'] == 'message.file') {
+            else if (op_att['inports'][ip]['type'] == 'message.file') {
               script_content += '    # Due to input-format PROPOSED transformation into DataFrame\n'
               script_content += '    df = pd.read_csv(io.BytesIO(msg.body))\n\n';
+            }
+            else if (op_att['inports'][ip]['type'] == 'message') {
+              script_content += '    # Assumingly the message.body is of type DataFrame\n'
+              script_content += '    df = msg.body\n\n';
             }
             
             script_content += config_params_indent + '\n\n';
@@ -320,36 +362,34 @@ api = mock_api(__file__)
             for (let op = 0; op < op_att['outports'].length; op++) {
               if (op_att['outports'][op]['type'] == 'message.table') {
                 script_content += `
+    # Sending to outport ${op_att['outports'][op]['name']}
     # Due to output-format PROPOSED transformation into message.table
     #df.columns = map(str.upper, df.columns)  # for saving to DB upper case is usual
     columns = []
     for col in df.columns : 
         columns.append({"class": str(df[col].dtype),\'name\': col})
-    att = {\'table\':{\'columns\':columns,\'name\':\'TABLE\',\'version\':1}}
+    att = copy.deepcopy(msg.attributes)
+    att['table'] = {'columns':columns,'name':'TABLE','version':1}
     out_msg = api.Message(attributes=att, body= df.values.tolist())
 `
               } else if (op_att['outports'][op]['type'] == 'message.file') {
                 script_content += `
     # Sending to outport ${op_att['outports'][op]['name']}
     csv = df.to_csv(index=False)
-    att = dict(msg.attributes)
-    filename = ''
-    if not filename and 'table_name' in att  :
-        filename = att['table_name'] + '.csv'
-    else :
-        filename = 'data.csv'
-    if not 'file' in att :
-        connectionID = "DI_DATA_LAKE"
-        path = os.path.join('/shared/',filename)
-        att['file'] = {"connection": {"configurationType": "Connection Management", "connectionID": connectionID },\\
-                       "path": path, "size": 1}
-              
+    att = copy.deepcopy(msg.attributes)
+    att['file'] = {"connection": {"configurationType": "Connection Management", "connectionID": "DI_DATA_LAKE" },\\
+                   "path": "/shared/data.csv", "size": 1}
     out_msg = api.Message(attributes=att,body=csv)
 `
-              }  else {
+              }  else if (op_att['outports'][op]['type'] == 'message') {
                 script_content += `
-      att = dict(msg.attributes)
-      out_msg = api.Message(attributes=att,body=None)
+    # Sending to outport ${op_att['outports'][op]['name']}
+    att = copy.deepcopy(msg.attributes)
+    out_msg = api.Message(attributes=att,body=None)
+`
+              } else {
+                script_content += `
+    out_msg = None
     `
               }
               let op_datatype = '    # datatype: ' + op_att['outports'][op]['type'] + '\n\n';
@@ -397,7 +437,7 @@ optest = operator_test(__file__)
             } else if (op_att['inports'][ip]['type'] == 'message.table') {
               script_test_content += 'msg'+idx+' = optest.get_msgtable(\'testdata'+idx+'.csv\')\n';
             } else {
-              script_test_content += 'msg = api.Message(attributes={\'operator\':\''+this.answers.operator+'\'},body = None)\n';
+              script_test_content += 'msg'+idx+' = api.Message(attributes={\'operator\':\''+this.answers.operator+'\'},body = None)\n';
             }
             script_test_content += script_file.slice(0,-3) + '.on_'+op_att['inports'][ip]['name']+'(msg'+idx+')\n';
           }
@@ -408,7 +448,7 @@ optest = operator_test(__file__)
 for mt in mock_api.msg_list :
   print('*********************')
   print('Port: {}'.format(mt['port']))
-  print('Data: {}'.format(mt['data'].attributes))
+  print('Attributes: {}'.format(mt['data'].attributes))
   print('Data: {}'.format(mt['data'].body))
   #print(optest.msgtable2df(mt['data']))  
   `
@@ -457,7 +497,7 @@ for mt in mock_api.msg_list :
         let operator_path = path.join(op_package_path,this.operator_name);
         this.log(operator_path);
         _vctl_mkdir(this,operator_path);
-        this.adjustOperatorName()
+        this._adjustOperatorName()
       } else {
         // operator path
         let op_package_path = path.join(vflow_operators_path,this.package_name);
@@ -467,7 +507,7 @@ for mt in mock_api.msg_list :
           let operator_path = path.join(op_package_path,this.operator_name);
           this.log('Operator folder does not exist on DI. Created: ' + operator_path);
           _vctl_mkdir(this,operator_path);
-          this.adjustOperatorName()
+          this._adjustOperatorName()
         };
       };
 
